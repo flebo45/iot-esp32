@@ -22,11 +22,25 @@ void setup() {
         }
     }
 
+    bme.setSampling(Adafruit_BME280::MODE_FORCED,
+                    Adafruit_BME280::SAMPLING_X1,
+                    Adafruit_BME280::SAMPLING_X1,
+                    Adafruit_BME280::SAMPLING_X1,
+                    Adafruit_BME280::FILTER_OFF,
+                    Adafruit_BME280::STANDBY_MS_0_5);
+
     Serial.print("BME280 sensor ID: ");
     Serial.println(bme.sensorID(), HEX);
 }
 
 void loop() {
+
+    if (!bme.takeForcedMeasurement()) {
+        Serial.println("Failed to take measurement!");
+        delay(1000); // Wait for a second before retrying
+        return;
+    }
+
     // Read temperature, humidity, and pressure from the BME280 sensor
     float temperature = bme.readTemperature();
     float humidity = bme.readHumidity();
