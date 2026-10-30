@@ -7,6 +7,8 @@
 #include <GxEPD2_BW.h>
 #include <Fonts/FreeSansBold24pt7b.h>
 #include <Fonts/FreeSans12pt7b.h>
+#include <esp_wifi.h>
+#include <WiFi.h>
 
 // Pin SPI (FSPI di default dello S3) e di controllo. Evitati i pin di strapping (0, 3, 45, 46),
 // USB (19, 20) e quelli della PSRAM ottale (35-37).
@@ -43,8 +45,19 @@ void drawCentered(const char *text, const GFXfont *font, int16_t y) {
 
 void setup() {
   Serial.begin(115200);
-  delay(500);
+  delay(5000);
   Serial.printf("Avvio dashboard, driver: %s\n", PANEL_NAME);
+
+  WiFi.mode(WIFI_STA);  // solo client, non serve AP
+
+  uint8_t mac[6]= {};
+  if (esp_wifi_get_mac(WIFI_IF_STA, mac) == ESP_OK){
+    Serial.printf("MAC address: %02X:%02X:%02X:%02X:%02X:%02X\n", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  } else {
+    Serial.println("Errore lettura MAC address.");
+  }
+    
+
 
   SPI.begin(PIN_SCK, -1, PIN_MOSI, PIN_CS);  // MISO non serve
   // reset_duration = 2 ms: richiesto dalle schede Waveshare con il circuito di reset "clever".
