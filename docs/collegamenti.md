@@ -24,7 +24,7 @@ Interruttori sul HAT:
 
 Cavo FPC del pannello: **attenzione al verso**. Il 2026-10-28 era inserito al contrario: il pannello non faceva il refresh e il controller teneva BUSY sempre basso (Busy Timeout in GxEPD2). Girato il flat, tutto funziona. Verso corretto: _da annotare (meglio con una foto in `docs/`)_. Levetta del connettore chiusa, nessuna piega stretta.
 
-Driver GxEPD2 funzionante: **`GxEPD2_750_GDEY075T7`** con Display Config su **B** (verificato il 2026-10-29).
+Driver GxEPD2 funzionanti, con Display Config su **B**: **`GxEPD2_750_T7`** (predefinito nel codice, verificato il 2026-10-30) e **`GxEPD2_750_GDEY075T7`** (con `-D EPD_GDEY075T7`, verificato il 2026-10-29).
 
 ## Nodo esterno: FireBeetle 2 ESP32-C6 + BME280
 
