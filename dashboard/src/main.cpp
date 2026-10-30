@@ -9,6 +9,8 @@
 #include <Fonts/FreeSans12pt7b.h>
 #include <esp_wifi.h>
 #include <WiFi.h>
+#include "measure.h"
+#include "secrets.h"
 
 // Pin SPI (FSPI di default dello S3) e di controllo. Evitati i pin di strapping (0, 3, 45, 46),
 // USB (19, 20) e quelli della PSRAM ottale (35-37).

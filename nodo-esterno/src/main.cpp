@@ -1,6 +1,8 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <Adafruit_BME280.h>
+#include "measure.h"
+#include "secrets.h"
 
 // PIN
 constexpr int PIN_SDA = 19;
