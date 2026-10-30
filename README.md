@@ -12,11 +12,14 @@ Una dashboard per casa: un display e-ink da 7,5" dentro un quadro, che si aggior
 ## Struttura
 
 - `dashboard/`: progetto PlatformIO del nodo dashboard
+- `nodo-esterno/`: progetto PlatformIO del nodo esterno (FireBeetle C6 + BME280)
 - `docs/collegamenti.md`: schema dei collegamenti
 
 ## Stato
 
-Passo 1: "Hello, Second Brain" sul display.
+- Milestone 1 ✅ display e-ink funzionante ("Hello, Second Brain").
+- Milestone 2 ✅ nodo esterno al banco: temperatura, umidità e pressione via seriale, BME280 in modalità forced.
+- Prossima: milestone 3, ESP-NOW dal nodo esterno alla dashboard.
 
 ## Compilare e caricare
 

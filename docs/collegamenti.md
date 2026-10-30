@@ -28,4 +28,17 @@ Driver GxEPD2 funzionante: **`GxEPD2_750_GDEY075T7`** con Display Config su **B*
 
 ## Nodo esterno: FireBeetle 2 ESP32-C6 + BME280
 
-Da definire alla milestone 2. Pin I2C di default della FireBeetle C6: SDA GPIO 19, SCL GPIO 20.
+Modulo GY-BME280 a 3,3 V (6 pin) collegato in I2C ai pin di default della FireBeetle C6. Verificato il 2026-10-30.
+
+| GY-BME280 | FireBeetle C6 | Note |
+|---|---|---|
+| VCC | 3V3 | modulo a 3,3 V: non collegarlo a 5 V |
+| GND | GND | |
+| SCL | GPIO 20 | |
+| SDA | GPIO 19 | |
+| CSB | 3V3 | alto = interfaccia I2C (basso all'accensione = SPI) |
+| SDO | GND | sceglie l'indirizzo: GND = **0x76**, 3V3 = 0x77 |
+
+Sensore trovato a **0x76** con lo scanner I2C. È un **BME280** vero (l'umidità risponde al test del soffio; un BMP280 non la misura).
+
+Libreria: `adafruit/Adafruit BME280 Library`, con `bme.begin(0x76, &Wire)`. Modalità **forced**: oversampling ×1 su T, U e P, filtro spento, una misura con `takeForcedMeasurement()` poi il sensore torna in sleep (niente autoriscaldamento, consumi minimi).
