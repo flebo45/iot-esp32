@@ -1,34 +1,45 @@
 #include <Arduino.h>
 #include <Wire.h>
+#include <Adafruit_BME280.h>
 
 // PIN
 constexpr int PIN_SDA = 19;
 constexpr int PIN_SCL = 20;
+
+Adafruit_BME280 bme;
 
 void setup() {
     Serial.begin(115200);
     delay(2000);
     // Initialize I2C communication
     Wire.begin(PIN_SDA, PIN_SCL);
-}
 
-void loop() {
-    int trovati = 0;
-
-    for (uint8_t addr = 1; addr < 127; ++addr) {
-        Wire.beginTransmission(addr);        
-        uint8_t esito = Wire.endTransmission();
-        if (esito == 0) {
-            Serial.print("Device found at address 0x");
-            if (addr < 16) {
-                Serial.print("0");
-            }
-            Serial.println(addr, HEX);
-            trovati++;
+    // Check if the BME280 sensor is connected
+    if (!bme.begin(0x76, &Wire)) {
+        Serial.println("Could not find a valid BME280 sensor, check wiring!");
+        while (true) {
+            delay(1000); // Infinite loop to halt execution
         }
     }
 
-    Serial.print("Total devices found: ");
-    Serial.println(trovati);
-    delay(1000);
+    Serial.print("BME280 sensor ID: ");
+    Serial.println(bme.sensorID(), HEX);
+}
+
+void loop() {
+    // Read temperature, humidity, and pressure from the BME280 sensor
+    float temperature = bme.readTemperature();
+    float humidity = bme.readHumidity();
+    float pressure = bme.readPressure() / 100.0F; // Convert to hPa
+
+    // Print the readings to the Serial Monitor
+    Serial.print("Temperature: ");
+    Serial.print(temperature);
+    Serial.print(" °C, Humidity: ");
+    Serial.print(humidity);
+    Serial.print(" %, Pressure: ");
+    Serial.print(pressure);
+    Serial.println(" hPa");
+
+    delay(5000); // Wait for 5 seconds before the next reading
 }
