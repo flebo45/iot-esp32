@@ -6,6 +6,7 @@
 #include <esp_now.h>
 #include <WiFi.h>
 #include <esp_wifi.h>
+#include "esp_check.h"
 
 // PIN
 constexpr int PIN_SDA = 19;
@@ -20,21 +21,10 @@ volatile esp_now_send_status_t last_send_status = ESP_NOW_SEND_FAIL; // MAC-leve
 Adafruit_BME280 bme;
 
 void onSent(const esp_now_send_info_t *info, esp_now_send_status_t status) {
-    // Runs in the Wi-Fi task: only copy the result and raise the flag, no Serial here
+    // Runs in the Wi-Fi task: only copy the result, no Serial here
     last_send_status = status;
     send_done = true; // written last, so when loop() sees it the status is already set
 }
-
-// Stops the program if an ESP-IDF call failed, printing which call and why
-void check(esp_err_t err, const char *what) {
-    if (err != ESP_OK) {
-        Serial.printf("%s failed: %s\n", what, esp_err_to_name(err));
-        while (true) {
-            delay(1000); // Infinite loop to halt execution
-        }
-    }
-}
-
 
 void setup() {
     Serial.begin(115200);

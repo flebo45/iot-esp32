@@ -1,4 +1,4 @@
-// Dashboard IoT, passo 1: "Hello, Second Brain" sul Waveshare 7,5" 800x480 B/N.
+// Dashboard IoT: riceve le misure del C6 via ESP-NOW e le stampa in seriale (milestone 3).
 // Hardware: ESP32-S3 (DevKitC-1 o compatibile) + e-Paper Driver HAT Waveshare.
 // Collegamenti: vedi ../docs/collegamenti.md
 
@@ -11,6 +11,17 @@
 #include <WiFi.h>
 #include "measure.h"
 #include "secrets.h"
+#include "esp_check.h"
+
+struct queue_element {
+  Measure measure;
+  uint8_t sender_mac[6];
+  int8_t rssi;
+};
+
+uint32_t last_measure_counter = 0; // last measure counter received, to detect lost packets
+bool has_received = false;
+
 
 // Pin SPI (FSPI di default dello S3) e di controllo. Evitati i pin di strapping (0, 3, 45, 46),
 // USB (19, 20) e quelli della PSRAM ottale (35-37).
@@ -35,6 +46,22 @@ static const char *PANEL_NAME = "GxEPD2_750_T7";
 // Buffer intero (800x480 / 8 = 48 KB): sullo S3 la RAM non e' un problema.
 GxEPD2_BW<Panel, Panel::HEIGHT> display(Panel(PIN_CS, PIN_DC, PIN_RST, PIN_BUSY));
 
+QueueHandle_t queue = nullptr;
+
+void onReceive(const esp_now_recv_info_t *info, const uint8_t *data, int len) {
+  // Runs in the Wi-Fi task: only copy the data, no Serial here
+  if (len != sizeof(Measure)) return; // ignore packets of unexpected size
+  queue_element elem;
+  memcpy(&elem.measure, data, sizeof(Measure));
+  memcpy(elem.sender_mac, info->src_addr, 6);
+  // version check
+  if (elem.measure.version != MEASURE_VERSION) return; // ignore packets of unexpected version
+  elem.rssi = info->rx_ctrl->rssi;
+
+  xQueueSend(queue, &elem, 0); // send to queue, no wait
+}
+
+
 // Scrive un testo centrato orizzontalmente con la baseline a quota y.
 void drawCentered(const char *text, const GFXfont *font, int16_t y) {
   display.setFont(font);
@@ -51,6 +78,22 @@ void setup() {
   Serial.printf("Avvio dashboard, driver: %s\n", PANEL_NAME);
 
   WiFi.mode(WIFI_STA);  // solo client, non serve AP
+
+  
+  queue = xQueueCreate(5, sizeof(queue_element));
+
+  if (queue == NULL) {
+    Serial.println("Errore creazione coda");
+    while (true) {
+      delay(1000);
+    }
+  }
+
+
+  // Every esp_* call returns an esp_err_t: if one fails, check() says which one and stops
+  check(esp_wifi_set_channel(ESPNOW_CHANNEL, WIFI_SECOND_CHAN_NONE), "esp_wifi_set_channel");
+  check(esp_now_init(), "esp_now_init");    
+  check(esp_now_register_recv_cb(onReceive), "esp_now_register_recv_cb");
 
   uint8_t mac[6]= {};
   if (esp_wifi_get_mac(WIFI_IF_STA, mac) == ESP_OK){
@@ -81,4 +124,23 @@ void setup() {
   Serial.println("Fatto: display in hibernate.");
 }
 
-void loop() {}
+void loop() {
+  queue_element elem;
+
+  if (xQueueReceive(queue, &elem, pdMS_TO_TICKS(1000)) == pdTRUE) {
+    // Got a packet, serial print it
+
+    if (!has_received) {
+      Serial.printf("First packet received, starting sequence. #%lu, T=%.2f C, H=%.2f %%, P=%.2f hPa, MAC: %02X:%02X:%02X:%02X:%02X:%02X, RSSI: %d\n", (unsigned long)elem.measure.counter, elem.measure.temperature, elem.measure.humidity, elem.measure.pressure, elem.sender_mac[0], elem.sender_mac[1], elem.sender_mac[2], elem.sender_mac[3], elem.sender_mac[4], elem.sender_mac[5], elem.rssi);
+      has_received = true;
+    } else if (elem.measure.counter == last_measure_counter + 1) {
+      Serial.printf(" #%lu OK. T=%.2f C, H=%.2f %%, P=%.2f hPa, MAC: %02X:%02X:%02X:%02X:%02X:%02X, RSSI: %d\n", (unsigned long)elem.measure.counter, elem.measure.temperature, elem.measure.humidity, elem.measure.pressure, elem.sender_mac[0], elem.sender_mac[1], elem.sender_mac[2], elem.sender_mac[3], elem.sender_mac[4], elem.sender_mac[5], elem.rssi);
+    } else if (elem.measure.counter > last_measure_counter + 1) {
+      Serial.printf("#%lu received, but %lu packets were lost. T=%.2f C, H=%.2f %%, P=%.2f hPa, MAC: %02X:%02X:%02X:%02X:%02X:%02X, RSSI: %d\n", (unsigned long)elem.measure.counter, (unsigned long)(elem.measure.counter - last_measure_counter - 1), elem.measure.temperature, elem.measure.humidity, elem.measure.pressure, elem.sender_mac[0], elem.sender_mac[1], elem.sender_mac[2], elem.sender_mac[3], elem.sender_mac[4], elem.sender_mac[5], elem.rssi);
+    } else if (elem.measure.counter <= last_measure_counter) {
+      Serial.printf("C6 Reboot: #%lu (last was #%lu). T=%.2f C, H=%.2f %%, P=%.2f hPa, MAC: %02X:%02X:%02X:%02X:%02X:%02X, RSSI: %d\n", (unsigned long)elem.measure.counter, (unsigned long)last_measure_counter, elem.measure.temperature, elem.measure.humidity, elem.measure.pressure, elem.sender_mac[0], elem.sender_mac[1], elem.sender_mac[2], elem.sender_mac[3], elem.sender_mac[4], elem.sender_mac[5], elem.rssi);
+    }
+    last_measure_counter = elem.measure.counter;
+
+  }
+}
