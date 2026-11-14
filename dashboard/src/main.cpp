@@ -1,4 +1,4 @@
-// Dashboard IoT: riceve le misure del C6 via ESP-NOW e le stampa in seriale (milestone 3).
+// Dashboard IoT: riceve le misure del C6 via ESP-NOW e le stampa in seriale e sul display e-paper (milestone 3).
 // Hardware: ESP32-S3 (DevKitC-1 o compatibile) + e-Paper Driver HAT Waveshare.
 // Collegamenti: vedi ../docs/collegamenti.md
 
@@ -21,6 +21,12 @@ struct queue_element {
 
 uint32_t last_measure_counter = 0; // last measure counter received, to detect lost packets
 bool has_received = false;
+
+queue_element last_queue_element_received;
+unsigned long last_queue_element_received_time = 0;
+unsigned long last_display_update_time = 0;
+
+
 
 
 // Pin SPI (FSPI di default dello S3) e di controllo. Evitati i pin di strapping (0, 3, 45, 46),
@@ -72,6 +78,36 @@ void drawCentered(const char *text, const GFXfont *font, int16_t y) {
   display.print(text);
 }
 
+void drawMeasureOnDisplay(const queue_element &elem, const unsigned long data_age_ms) {
+  display.fillScreen(GxEPD_WHITE);
+  display.drawRect(16, 16, display.width() - 32, display.height() - 32, GxEPD_BLACK);
+  char buffer[64];
+  snprintf(buffer, sizeof(buffer), "#%lu", (unsigned long) elem.measure.counter);
+  drawCentered(buffer, &FreeSansBold24pt7b, FreeSansBold24pt7b.yAdvance + 16);
+  snprintf(buffer, sizeof(buffer), "T=%.1f C", elem.measure.temperature);
+  drawCentered(buffer, &FreeSansBold24pt7b, FreeSansBold24pt7b.yAdvance * 2 + 16);
+  snprintf(buffer, sizeof(buffer), "H=%.0f %%", elem.measure.humidity);
+  drawCentered(buffer, &FreeSansBold24pt7b, FreeSansBold24pt7b.yAdvance * 3 + 16);
+  snprintf(buffer, sizeof(buffer), "P=%.1f hPa", elem.measure.pressure);
+  drawCentered(buffer, &FreeSansBold24pt7b, FreeSansBold24pt7b.yAdvance * 4 + 16);
+  snprintf(buffer, sizeof(buffer), "RSSI=%d dBm", elem.rssi);
+  drawCentered(buffer, &FreeSansBold24pt7b, FreeSansBold24pt7b.yAdvance * 5 + 16);
+  snprintf(buffer, sizeof(buffer), "Data age: %lu s", data_age_ms / 1000);
+  drawCentered(buffer, &FreeSansBold24pt7b, FreeSansBold24pt7b.yAdvance * 6 + 16);
+}
+
+void updateDisplay() {
+  Serial.printf("Updating display at %lu ms\n", millis());
+  display.firstPage();
+  do {
+    drawMeasureOnDisplay(last_queue_element_received, millis() - last_queue_element_received_time);
+  } while (display.nextPage());
+  last_display_update_time = millis();
+  display.hibernate();  // il pannello non va lasciato alimentato tra un refresh e l'altro
+  Serial.printf("Display updated at %lu ms\n", millis());
+}
+
+
 void setup() {
   Serial.begin(115200);
   delay(5000);
@@ -115,13 +151,12 @@ void setup() {
   do {
     display.fillScreen(GxEPD_WHITE);
     display.drawRect(16, 16, display.width() - 32, display.height() - 32, GxEPD_BLACK);
-    drawCentered("Hello, Second Brain", &FreeSansBold24pt7b, display.height() / 2);
-    drawCentered("Progetto IoT - passo 1", &FreeSans12pt7b, display.height() / 2 + 48);
+    drawCentered("In attesa di dati...", &FreeSansBold24pt7b, display.height() / 2);
+    drawCentered("Progetto IoT", &FreeSans12pt7b, display.height() / 2 + 48);
     drawCentered(PANEL_NAME, &FreeSans12pt7b, display.height() - 40);
   } while (display.nextPage());
 
   display.hibernate();  // il pannello non va lasciato alimentato tra un refresh e l'altro
-  Serial.println("Fatto: display in hibernate.");
 }
 
 void loop() {
@@ -141,6 +176,12 @@ void loop() {
       Serial.printf("C6 Reboot: #%lu (last was #%lu). T=%.2f C, H=%.2f %%, P=%.2f hPa, MAC: %02X:%02X:%02X:%02X:%02X:%02X, RSSI: %d\n", (unsigned long)elem.measure.counter, (unsigned long)last_measure_counter, elem.measure.temperature, elem.measure.humidity, elem.measure.pressure, elem.sender_mac[0], elem.sender_mac[1], elem.sender_mac[2], elem.sender_mac[3], elem.sender_mac[4], elem.sender_mac[5], elem.rssi);
     }
     last_measure_counter = elem.measure.counter;
+    last_queue_element_received = elem;
+    last_queue_element_received_time = millis();
+  }
 
+  if (has_received && (last_display_update_time == 0 || millis() - last_display_update_time >= 180000)) {
+    // Update display every 180 seconds if at least one packet has been received
+    updateDisplay();
   }
 }
